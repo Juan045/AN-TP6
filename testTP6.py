@@ -16,14 +16,14 @@ C_hielo = 0.5 #cal/(g*°C)
 ro_hielo = 0.917 #g/(cm^3)
 k_prima_agua = 0.0014 #cal/(s*cm*°C)
 k_prima_hielo = 0.005 #cal/(s*cm*°C)
-L_f = 80  # cal/g (calor latente de fusión)
+L_f = 79.8279  # cal/g (calor latente de fusión)
 
 k_agua = k_prima_agua/(ro_agua*C_agua)
 k_hielo = k_prima_hielo/(ro_hielo*C_hielo)
 
 print(k_agua, k_hielo)
 
-dx = 0.1 #Test con 1mm
+dx = 0.05 #Test con 1mm
 dt = 0.5 * (dx ** 2) #Establecer un criterio para justificarlo (cambiar si es necesario)
 dt = 0.001
 
@@ -48,6 +48,7 @@ T[-1] = T_F
 
 print(f"Delta estable: {(dx/10)**2/(2*k_hielo)} -> dt = {dt}")
 print(f"Delta estable: {(dx/10)**2/(2*k_agua)}")
+print(f"Numero de fourier: {k_agua*dt/L**2}")
 
 #SOLUCIONES DEL SISTEMA
 t_final = 100 #seg
@@ -57,7 +58,7 @@ phi_sol = [phi]
 t_sol = [t]
 
 #METODO IMPLICITO
-while t < 100:
+while t < t_final:
     A = np.zeros((cantidad_divisiones, cantidad_divisiones))
     b = np.zeros(cantidad_divisiones)
     for i in range(cantidad_divisiones):
@@ -85,7 +86,7 @@ while t < 100:
             dT = T_dt[i] - T[i]
             d_phi = (dT * C_hielo) / L_f
             phi[i] = min(1, max(0, phi[i] + d_phi)) #Mantiene el valor de phi dentro del rango de 0 a 1
-            if phi[i] < 1:
+            if phi[i] < 1 and T_dt[i] >= 0:
                 T_dt[i] = 0
     
     t += dt
@@ -95,6 +96,7 @@ while t < 100:
         T_sol.append(T)
         phi_sol.append(phi.copy())
         t_sol.append(t)
+
 
 #MOSTRAR RESULTADOS FINALES
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6))

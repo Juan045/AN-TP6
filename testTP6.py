@@ -80,9 +80,9 @@ while t < t_final:
             
     T_dt = np.dot(np.linalg.inv(A), b) #Resolver nuevas temperaturas
     
-    #Corregir temperatura
+    #Corregir temperatura en cambio de fase
     for i in range(cantidad_divisiones):
-        if 0 <= phi[i] < 1:
+        if 0 <= phi[i] < 1: #0 todo hielo, 1 todo agua
             dT = T_dt[i] - T[i]
             d_phi = (dT * C_hielo) / L_f
             phi[i] = min(1, max(0, phi[i] + d_phi)) #Mantiene el valor de phi dentro del rango de 0 a 1

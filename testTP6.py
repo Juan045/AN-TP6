@@ -9,7 +9,7 @@ def rampa_lineal(t):
 
 #DATOS
 #Se desprecia el ancho de 1 mm del dominio
-L = 1.0 #mm largo del dominio
+L = 1.0 #cm largo del dominio
 C_agua = 1 #cal/(g*°C)
 ro_agua = 0.998 #g/(cm^3) -> es 1 a 4°C
 C_hielo = 0.5 #cal/(g*°C)
@@ -21,7 +21,6 @@ L_f = 79.8279  # cal/g (calor latente de fusión)
 k_agua = k_prima_agua/(ro_agua*C_agua)
 k_hielo = k_prima_hielo/(ro_hielo*C_hielo)
 
-print(k_agua, k_hielo)
 
 dx = 0.05 #Test con 1mm
 dt = 0.5 * (dx ** 2) #Establecer un criterio para justificarlo (cambiar si es necesario)
@@ -35,14 +34,14 @@ cantidad_divisiones = int(L/dx)
 x = np.linspace(0, L, cantidad_divisiones)
 
 #CONDICIONES INICIALES
-t = 0
+t = 0.0
 t_inicial = t
 T = np.ones(cantidad_divisiones) * -10 #Se utiliza como vector de temperaturas de la barra
 phi = np.zeros(cantidad_divisiones)  #Fracción de fase inicial (todo es hielo)
 
 #CONDICIONES DE BORDE
-T0 = -10 #como esta aislado considero 0, temperatura el inicio del dominio
-T_F = rampa_lineal(0) #Temperatura al final del dominio
+T0 = -10 #como esta aislado considero -10°C, temperatura el inicio del dominio
+T_F = rampa_lineal(0.0) #Temperatura al final del dominio
 T[0] = T0
 T[-1] = T_F
 
@@ -58,7 +57,7 @@ phi_sol = [phi]
 t_sol = [t]
 
 #METODO IMPLICITO
-while t < t_final:
+while t <= t_final:
     A = np.zeros((cantidad_divisiones, cantidad_divisiones))
     b = np.zeros(cantidad_divisiones)
     for i in range(cantidad_divisiones):
@@ -91,15 +90,42 @@ while t < t_final:
     
     t += dt
     T = T_dt.copy() #Nuevas temperaturas
-    
-    if int(t * 1000) % int(10 * 1000) == 0:
-        T_sol.append(T)
-        phi_sol.append(phi.copy())
-        t_sol.append(t)
+    T_sol.append(T)
+    phi_sol.append(phi.copy())
+    t_sol.append(t)
+    #if int(t * 1000) % int(10 * 1000) == 0:
+        
 
 
 #MOSTRAR RESULTADOS FINALES
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6))
+T_array = np.array(T_sol)
+phi_array = np.array(phi_sol)
+
+# Gráfico de mapas de temperatura
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+
+# Mapa de temperatura
+im1 = ax1.imshow(T_array.T, aspect='auto', cmap='hot', origin='lower',
+                 extent=[0, t_final, 0, L])
+ax1.set_title("Mapa de Temperatura")
+ax1.set_xlabel("Tiempo (s)")
+ax1.set_ylabel("Posición (cm)")
+fig.colorbar(im1, ax=ax1, label="Temperatura (°C)")
+
+# Mapa de fracción de fase
+im2 = ax2.imshow(phi_array.T, aspect='auto', cmap='cool', origin='lower',
+                 extent=[0, t_final, 0, L])
+ax2.set_title("Mapa de Fracción de Fase")
+ax2.set_xlabel("Tiempo (s)")
+ax2.set_ylabel("Posición (cm)")
+fig.colorbar(im2, ax=ax2, label="Fracción de Fase")
+
+plt.tight_layout()
+plt.show()
+
+
+
+""" fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6))
 
 #Gráfico de temperatura
 for i, t in enumerate(t_sol):
@@ -120,7 +146,7 @@ ax2.legend()
 ax2.grid(True)
 
 plt.tight_layout()
-plt.show()
+plt.show() """
     
     
 """ if int(t * 1000) % int(10 * 1000) == 0:

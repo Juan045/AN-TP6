@@ -1,88 +1,94 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.sparse import diags
-from scipy.sparse.linalg import spsolve
 
-# Parámetros
-Lx, Ly = 1.0, 1.0  # Dimensiones del dominio (cm)
-dx, dy = 0.05, 0.05  # Tamaño de celdas (cm)
-nx, ny = int(Lx / dx), int(Ly / dy)  # Número de divisiones
-dt = 0.001  # Paso de tiempo (s)
-t_final = 100  # Tiempo de simulación (s)
+# Parámetros físicos
+rho = 917  # kg/m³ (densidad del hielo)
+c = 2100   # J/(kg·K) (calor específico)
+k = 2.2    # W/(m·K) (conductividad térmica)
+L = 334000 # J/kg (calor latente de fusión)
+T_m = 0    # °C (temperatura de fusión)
+delta_T = 0.1  # Rango de transición de fase
 
-C_hielo, C_agua = 0.5, 1.0  # Capacidad calorífica específica (cal/g°C)
-rho_hielo, rho_agua = 0.917, 0.998  # Densidad (g/cm³)
-k_hielo, k_agua = 0.005 / (rho_hielo * C_hielo), 0.0014 / (rho_agua * C_agua)
-L_f = 79.8279  # Calor latente (cal/g)
+# Parámetros del dominio
+Lx, Ly = 10e-3, 1e-3  # Dimensiones en metros
+Nx, Ny = 110, 10      # Número de nodos
+dx, dy = Lx / Nx, Ly / Ny
 
-# Difusividad térmica
-alpha_hielo = k_hielo
-alpha_agua = k_agua
+# Condiciones iniciales
+T_inicial = -20  # °C
+T_agua = 20      # °C
 
-# Inicialización del dominio
-T = np.ones((nx, ny)) * -10  # Temperatura inicial (°C)
-phi = np.zeros((nx, ny))  # Fracción de fase inicial (hielo)
+# Inicialización del campo de temperatura
+T = np.ones((Ny, Nx)) * T_inicial  # Todo el dominio como hielo inicialmente
+phi = np.zeros((Ny, Nx))  # Fracción de fase inicial
 
-# Bordes
-T[:, -1] = np.linspace(-10, 85, nx)  # Rampa de temperatura en el borde derecho
+# Definir regiones de agua e hielo
+centro_inicio = Nx//2 - 5
+centro_fin = Nx//2 + 5
+T[:, 0:centro_inicio] = T_agua
+T[:, centro_fin:] = T_agua
+T[-1, :] = T_agua
+phi[:, 0:centro_inicio] = 1
+phi[:, centro_fin:] = 1
 
-# Matriz de coeficientes para el método implícito
-def construir_matriz(nx, ny, alpha, dx, dy, dt):
-    N = nx * ny
-    diagonales = []
-    posiciones = []
+# Precomputar constantes
+alpha = k / (rho * c)
+dt = 0.25 * min(dx**2, dy**2) / alpha  # Ajuste según estabilidad explícita
+factor_x = alpha * dt / dx**2
+factor_y = alpha * dt / dy**2
 
-    # Diagonal principal
-    diagonales.append((1 + 2 * alpha * dt / dx**2 + 2 * alpha * dt / dy**2) * np.ones(N))
-    posiciones.append(0)
-
-    # Diagonales para las interacciones en x
-    diagonales.append((-alpha * dt / dx**2) * np.ones(N - 1))
-    diagonales.append((-alpha * dt / dx**2) * np.ones(N - 1))
-    posiciones.extend([-1, 1])
-
-    # Diagonales para las interacciones en y
-    diagonales.append((-alpha * dt / dy**2) * np.ones(N - nx))
-    diagonales.append((-alpha * dt / dy**2) * np.ones(N - nx))
-    posiciones.extend([-nx, nx])
-
-    return diags(diagonales, posiciones, shape=(N, N))
-
-# Aplanar la matriz T para trabajar con el método implícito
-T_flat = T.flatten()
-
-# Construir la matriz A
-alpha = alpha_hielo  # Usamos hielo por defecto
-A = construir_matriz(nx, ny, alpha, dx, dy, dt).tocsc()
+# Función para actualizar la fracción de fase
+# Función para actualizar la fracción de fase
+def actualizar_phi(T, phi, L, c):
+    for j in range(phi.shape[0]):
+        for i in range(phi.shape[1]):
+            if 0 <= phi[j, i] < 1:  # 0 todo hielo, 1 todo agua
+                dT = T[j, i] - T_m
+                d_phi = (dT * c) / L
+                phi[j, i] = min(1, max(0, phi[j, i] + d_phi))  # Mantiene phi en rango
+                if phi[j, i] < 1 and T[j, i] >= T_m:
+                    T[j, i] = T_m
+    return phi
 
 # Simulación
 t = 0
-while t < t_final:
-    if int(t * 1000) % int(10 * 1000) == 0:
-        print(t)
-    # Resolver el sistema lineal
-    T_new_flat = spsolve(A, T_flat)
-    T_new = T_new_flat.reshape((nx, ny))
+tiempo_max = 100  # segundos
 
+tiempos = []
+phi_promedios = []
+print(dt)
+
+import sys
+while t < tiempo_max:
+    T_new = np.copy(T)
+    
+    print(T[:, :-2].shape)
+    print(T[:, 1:-1].shape)
+    sys.exit()
+    # Aplicar ecuación de calor explícita (Diferencias Finitas)
+    T_new[:, 1:-1] = T[:, 1:-1] + factor_x * (T[:, :-2] - 2*T[:, 1:-1] + T[:, 2:])
+    T_new[1:-1, :] += factor_y * (T[:-2, :] - 2*T[1:-1, :] + T[2:, :])
+    
     # Actualizar fracción de fase
-    for i in range(nx):
-        for j in range(ny):
-            if 0 <= phi[i, j] < 1:
-                dT = T_new[i, j] - T[i, j]
-                d_phi = (dT * C_hielo) / L_f
-                phi[i, j] = min(1, max(0, phi[i, j] + d_phi))
-                if phi[i, j] < 1 and T_new[i, j] >= 0:
-                    T_new[i, j] = 0
-
-    # Actualizar temperatura y tiempo
-    T = T_new.copy()
-    T_flat = T.flatten()
+    phi = actualizar_phi(T_new, phi, L, c)
+    phi_promedio = np.mean(phi[:, centro_inicio:centro_fin])
+    
+    # Actualizar temperatura
+    T = np.copy(T_new)
     t += dt
+    tiempos.append(t)
+    #phi_promedios.append(np.mean(phi))
+    if phi_promedio >= 0.5:
+        break
 
-# Visualización final
-plt.imshow(T, cmap='hot', origin='lower', extent=[0, Lx, 0, Ly])
+# Graficar resultados
+print(phi[:, centro_inicio:centro_fin])
+print(T[:, centro_inicio:centro_fin])
+print(t)
+plt.figure(figsize=(8, 4))
+plt.imshow(phi[:, centro_inicio:centro_fin], cmap='coolwarm', aspect='auto', origin='lower', extent=[0, Ly*1e3, 0, Ly*1e3])
 plt.colorbar(label="Temperatura (°C)")
-plt.title("Distribución de Temperatura al Final")
-plt.xlabel("x (cm)")
-plt.ylabel("y (cm)")
+plt.xlabel("Longitud (mm)")
+plt.ylabel("Altura (mm)")
+plt.title("Distribución de Temperatura en el Dominio")
 plt.show()
